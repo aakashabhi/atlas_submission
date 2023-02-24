@@ -239,35 +239,39 @@ class Seg():
         file_list = os.listdir(inp_path)  # List of files in the input
         file_list = [os.path.join(inp_path, f) for f in file_list]
         with custom_object_scope({'spatial_attention': spatial_attention,'channel_attention':channel_attention,'tversky_loss':tversky_loss,'dice_coef':dice_coef}):
-            model = load_model('Try_N_inter_Exp2_1_2.h5')
+            model = load_model("model.h5")
         for fil in file_list:
             dat, hdr = medpy.io.load(fil)  # dat is a numpy array
             im_shape = dat.shape
+            dat = dat.reshape(*im_shape)
             tmp2 = np.zeros([192,192,189], dtype = float)
-            for j in range(0,im_shape.shape[-1]):
+            for j in range(0,189):
                 img = dat[:,:,j]
                 img_sm=cv2.resize(img, (192,192), interpolation=cv2.INTER_CUBIC)
                 tmp2[:, :,j] = img_sm
             test_sample=np.expand_dims(tmp2, -1) 
             ans_slices=[]
-            
-            for i in range(0,184,8):
+            print("Sampling done")
+            for i in range(22,166,8):
                 test_slice=test_sample[:,:,i:i+8]
+                test_slice=test_slice.reshape(1, 192, 192, 8, 1)
                 pred = model.predict(test_slice)
                 threshold=0.5
                 pred[pred >= threshold] = 1
                 pred[pred < threshold] = 0
+                pred=pred.reshape((192, 192, 8))
                 ans_slices.append(pred)
             dat=ans_slices[0]
             for i in range(1,len(ans_slices)):
                 dat=np.concatenate((dat,ans_slices[i]),axis=2)
-            dat=np.concatenate((dat,np.zeros([192,192,5])),axis=2)
+            final_ans=np.zeros((192,192,189))
+            final_ans[:,:,22:166]=dat
             ###
             ###########
-            ans = np.zeros([192,192,189], dtype = float)
-            for j in range(0,im_shape.shape[-1]):
-                img = dat[:,:,j]
-                img_sm=cv2.resize(img, (197,233), interpolation=cv2.INTER_CUBIC)
+            ans = np.zeros([197,233,189], dtype = int)
+            for j in range(0,189):
+                img = final_ans[:,:,j]
+                img_sm=cv2.resize(img, (233,197), interpolation=cv2.INTER_NEAREST)
                 ans[:, :,j] = img_sm
             dat=ans
             dat = dat.reshape(*im_shape)
@@ -275,6 +279,7 @@ class Seg():
             out_filepath = os.path.join(out_path, out_name)
             print(f'=== saving {out_filepath} from {fil} ===')
             medpy.io.save(dat, out_filepath, hdr=hdr)
+            print("Done")
         return
 
 
